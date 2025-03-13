@@ -24,9 +24,10 @@ class Upload(Base):
     __tablename__ = "uploads"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    path = Column(String(255), nullable=False)
+    filename = Column(String(255), nullable=False)
+    filepath = Column(String(255), nullable=False)
     at = Column(DateTime, default=datetime.now(timezone.utc))
     user_id = Column(Integer, ForeignKey("users.id"))
 
     def __repe__(self):
-        return f"<Upload(path={self.path})>"
+        return f"<Upload(name={self.filename},path={self.filepath})>"
