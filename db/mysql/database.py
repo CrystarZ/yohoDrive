@@ -1,5 +1,4 @@
-from typing import Optional, Dict
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker
 from .models import Base
 
@@ -36,8 +35,22 @@ class database:
         """
         return f"mysql+pymysql://{self.username}:{self.password}@{self.host}:{self.port}/{self.dbname}"
 
+    def close(self):
+        return self.session.close()
+
+    def rollback(self):
+        return self.session.rollback()
+
+    def refresh(self, instance):
+        return self.session.refresh(instance)
+
     def add(self, instance):
         self.session.add(instance)
+        self.session.commit()
+        return instance
+
+    def delete(self, instance):
+        self.session.delete(instance)
         self.session.commit()
         return instance
 
@@ -48,5 +61,7 @@ class database:
         Base.metadata.create_all(self.engine)
 
     def recreate_tables(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
+        metadata = MetaData()
+        metadata.reflect(bind=self.engine)
+        metadata.drop_all(self.engine)
+        self.create_tables()
