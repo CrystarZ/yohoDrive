@@ -1,32 +1,33 @@
-from myyolo import YOLO
+from yolo import YOLO
 from PIL import Image
-import matplotlib.pyplot as plt
-
-from dataset import VOCDataset as ds
-
-d = ds("./VOCdevkit/VOC2007", input_shape=[640, 640], sets="val")
-i, label = d[d.xmls.index("003229")]
-i = i.transpose(1, 2, 0)
-plt.imshow(i)
-plt.show()
-print(label)
+from torchvision import transforms
 
 
-# yolo = YOLO(
-#     cuda=False,
-# )
-# img = Image.open("./img/street.jpg")
-# image_data, shape = yolo.preprocessing_image(img)
-# # print(image.shape)
-#
-# result = yolo.detect_image(image_data, shape)
-# Result = yolo.formatBoxes(result, shape)
-# image = yolo.drawResults(img, result)
-# image.show()
-#
-# for i in Result:
-#     label, score, top, left, bottom, right = i
-#     predicted_class = yolo.class_names[label]
-#     text_lable = "{} {:.2f}".format(predicted_class, score).encode("utf-8")
-#
-#     print(text_lable, top, left, bottom, right)
+def get_classes(classes_path):
+    with open(classes_path, encoding="utf-8") as f:
+        class_names = f.readlines()
+    class_names = [c.strip() for c in class_names]
+    return class_names, len(class_names)
+
+
+to_pil = transforms.ToPILImage()
+classes, _ = get_classes("./tl_classes.txt")
+
+yolo = YOLO(
+    module_path="./weights/tl_v8s.pth",
+    classes=classes,
+    cuda=False,
+)
+
+img = Image.open("./img/tl_test.jpg")
+result = yolo.predict(img)
+image = yolo.drawResults(img, result)
+image.show()
+
+if result is not None:
+    for i in result:
+        label, score, top, left, bottom, right = i
+        predicted_class = yolo.class_names[label]
+        text_lable = "{} {:.2f}".format(predicted_class, score).encode("utf-8")
+
+        print(text_lable, top, left, bottom, right)

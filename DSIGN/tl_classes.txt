@@ -1,0 +1,14 @@
+redleft
+greenleft
+yellowleft
+red
+green
+yellow
+redstraight
+greenstraight
+yellowstraight
+redtime
+greentime
+yellowtime
+redpeople
+greenpeople
