@@ -1,10 +1,14 @@
+from typing import Tuple
 import numpy as np
-import colorsys
-from utils.utils_bbox import DecodeBox
-from nets.yolo import YoloBody
 import torch
 import torch.nn as nn
-from PIL import Image, ImageDraw, ImageFont
+from torch import Tensor
+from torchvision import transforms
+from PIL import Image, ImageDraw
+from utils.utils_bbox import DecodeBox
+from nets.yolo import YoloBody
+
+type imgshape = Tuple[int, int]  # w,h
 
 
 class YOLO(object):
@@ -12,7 +16,7 @@ class YOLO(object):
         self,
         module_path: str,  # 权重路径
         classes: list[str],  # 标签
-        input_shape: tuple[int, int] = (640, 640),  # 输入图像尺寸(32的倍数)
+        input_shape: imgshape = (640, 640),  # 输入图像尺寸(32的倍数)
         phi: str = "s",  # 对应yolov8版本
         confidence: float = 0.5,  # 置信度
         nms_iou: float = 0.3,  # 非极大抑制所用到的nms_iou大小
@@ -46,17 +50,17 @@ class YOLO(object):
                 net = net.cuda()
         return net
 
-    def preprocessing_image(self, image):
+    def preprocessing_image(self, image: Image.Image) -> Tuple[Tensor, imgshape]:
         # ---  图像预处理  --- #
         #
 
-        image_shape = np.array(np.shape(image)[0:2])  # 获取图像尺寸
+        image_shape = image.size  # 获取图像尺寸
 
         # 强制转换成RGB图像，防止灰度图报错
-        if len(np.shape(image)) != 3 and np.shape(image)[2] == 3:
+        if len(image.mode) != 3:
             image = image.convert("RGB")
 
-        # RESIZE 到 input_shape
+        # RESIZE
         if self.letterbox_image:  # 是否填充
             iw, ih = image_shape
             w, h = self.input_shape
@@ -73,31 +77,38 @@ class YOLO(object):
 
         #   添加上batch_size维度
         #   h, w, 3 => 3, h, w => 1, 3, h, w
-        image_data = np.array(image_data, dtype="float32")
-        image_data /= 255.0  # 归一化
-        image_data = np.transpose(image_data, (2, 0, 1))
-        image_data = np.expand_dims(image_data, axis=0)
+        transform = transforms.ToTensor()
+        image_data = transform(image_data)
+        image_data = image_data.unsqueeze(0)
+        # image_data = np.array(image_data, dtype="float32")
+        # image_data /= 255.0  # 归一化
+        # image_data = np.transpose(image_data, (2, 0, 1))
+        # image_data = np.expand_dims(image_data, axis=0)
 
         return image_data, image_shape
 
-    def detect_image(self, image_data, image_shape):
+    type res = Tuple[np.ndarray, np.ndarray, np.ndarray]
+    type fres = Tuple[int, int, int, int, int, int]
+
+    def detect_image(self, image_data: Tensor, image_shape: imgshape) -> res | None:
         # --- 模型预测 --- #
         #
 
         with torch.no_grad():
-            images = torch.from_numpy(image_data)
+            images = image_data
             if self.cuda:
                 images = images.cuda()
 
             outputs = self.net(images)
             outputs = self.bbox_util.decode_box(outputs)
 
+            w, h = image_shape
             # 将预测框进行堆叠，然后进行非极大抑制
             results = self.bbox_util.non_max_suppression(
                 outputs,
                 self.num_classes,
                 self.input_shape,
-                image_shape,
+                (h, w),
                 self.letterbox_image,
                 conf_thres=self.confidence,
                 nms_thres=self.nms_iou,
@@ -111,7 +122,7 @@ class YOLO(object):
             top_boxes = results[0][:, :4]
             return top_label, top_conf, top_boxes
 
-    def formatBoxes(self, results, image_shape):
+    def formatBoxes(self, results: res, image_shape: imgshape) -> list[fres]:
         top_label, top_conf, top_boxes = results
         Results = list()
         for i in range(len(top_label)):
@@ -128,49 +139,37 @@ class YOLO(object):
             Results.append((label, score, top, left, bottom, right))
         return Results
 
-    def drawResults(self, image, results):
+    def drawResults(
+        self, image: Image.Image, results: list[fres] | None
+    ) -> Image.Image:
         if results is None:
-            pass
+            return image
+        COLOR = (0, 0, 255)
         draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype(
-            font="model_data/simhei.ttf",
-            size=np.floor(3e-2 * image.height + 0.5).astype("int32"),
-        )
-        thickness = int(  # 边框大小
-            max((image.width + image.height) // np.mean(self.input_shape), 1)
-        )
 
-        hsv_tuples = [(x / self.num_classes, 1.0, 1.0) for x in range(self.num_classes)]
-        colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-        colors = list(
-            map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), colors)
-        )
-
-        image_shape = (image.width, image.height)
-        Results = self.formatBoxes(results, image_shape)
-
-        for i in Results:
+        for i in results:
             label, score, top, left, bottom, right = i
 
             predicted_class = self.class_names[label]
             text_label = "{} {:.2f}".format(predicted_class, score).encode("utf-8")
 
-            _, _, l_width, l_height = draw.textbbox((0, 0), text=text_label, font=font)
-            label_size = (l_width, l_height)
+            xmin, ymin, xmax, ymax = (left, top, right, bottom)
+            draw.rectangle([xmin, ymin, xmax, ymax], outline=COLOR, width=3)
+            text_size = draw.textbbox((0, 0), text_label, font=None)
+            text_w = text_size[2] - text_size[0]
+            text_h = text_size[3] - text_size[1]
+            text_bg = (xmin, ymin - text_h, xmin + text_w, ymin)  # 计算文本框位置
 
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
-            else:
-                text_origin = np.array([left, top + 1])
+            draw.rectangle(text_bg, fill=COLOR)
+            draw.text((xmin, ymin - text_h), text_label, fill=(255, 255, 255))
 
-            for j in range(thickness):
-                draw.rectangle(
-                    [left + j, top + j, right - j, bottom - j], outline=colors[label]
-                )
-            draw.rectangle(
-                [tuple(text_origin), tuple(text_origin + label_size)],
-                fill=colors[label],
-            )
-            draw.text(text_origin, str(text_label, "UTF-8"), fill=(0, 0, 0), font=font)
         del draw
         return image
+
+    def predict(self, image: Image.Image) -> list[fres] | None:
+        img_data, shape = self.preprocessing_image(image)
+        res = self.detect_image(img_data, shape)
+        if res is None:
+            return None
+        result = self.formatBoxes(res, shape)
+        return result
