@@ -2,9 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nets.backbone import Backbone, C2f, Conv
-from nets.yolo_training import weights_init
-from utils.utils_bbox import make_anchors
+from ..nets.backbone import Backbone, C2f, Conv
+from ..nets.yolo_training import weights_init
+from ..utils.utils_bbox import make_anchors
 
 def fuse_conv_and_bn(conv, bn):
     # 混合Conv2d + BatchNorm2d 减少计算量
