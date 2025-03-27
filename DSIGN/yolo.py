@@ -88,7 +88,7 @@ class YOLO(object):
         return image_data, image_shape
 
     type res = Tuple[np.ndarray, np.ndarray, np.ndarray]
-    type fres = Tuple[int, int, int, int, int, int]
+    type fres = Tuple[int, float, int, int, int, int]
 
     def detect_image(self, image_data: Tensor, image_shape: imgshape) -> res | None:
         # --- 模型预测 --- #
