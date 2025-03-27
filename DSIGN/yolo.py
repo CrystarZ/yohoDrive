@@ -5,8 +5,8 @@ import torch.nn as nn
 from torch import Tensor
 from torchvision import transforms
 from PIL import Image, ImageDraw
-from utils.utils_bbox import DecodeBox
-from nets.yolo import YoloBody
+from .utils.utils_bbox import DecodeBox
+from .nets.yolo import YoloBody
 
 type imgshape = Tuple[int, int]  # w,h
 

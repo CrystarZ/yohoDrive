@@ -1,4 +1,4 @@
-from nets.LeNet5 import OCRNUM
+from .nets.LeNet5 import OCRNUM
 import torch
 from torchvision import transforms
 import numpy as np
@@ -104,12 +104,3 @@ class OCR(object):
             predict_text = predict_text[0:2]
 
         return predict_text
-
-
-if __name__ == "__main__":
-    img = Image.open("./img/test.jpg")
-    img.show()
-
-    img = tomygray(img, "R")
-    ocr = OCR(module_path="./weights/cnn2.pth", cuda=False)
-    print(ocr.predict(img))
