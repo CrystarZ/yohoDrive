@@ -2,108 +2,12 @@ import os
 from PIL import Image
 import glob
 
-yolo_img_dir = "./.output/cd_yolo/img"
-yolo_txt_dir = "./.output/cd_yolo/label"
-output_dir = "./.output/dataset"
-
-yolo_img_dir = "../../LEDdataset/image"
-yolo_txt_dir = "../../LEDdataset/label/5.9"
-output_dir = "../../temp2"
+yolo_img_dir = "../../tt100k/images"
+yolo_txt_dir = "../../tt100k/labels"
+output_dir = "../../tt100kVOC"
 annotations_root_path = f"{output_dir}/Annotations"
 images_root_path = f"{output_dir}/JPEGImages"
 isMV = True
-
-# 目标类别
-labels = [
-    "tlr",
-    "tly",
-    "tlg",
-    "tlra",
-    "tlya",
-    "tlga",
-    "tsra",
-    "tsya",
-    "tsga",
-    "trra",
-    "trya",
-    "trga",
-    "tura",
-    "tuya",
-    "tuga",
-    "tln",
-    "117",
-    "118",
-    "119",
-    "120",
-    "121",
-    "122",
-    "123",
-    "124",
-    "125",
-    "126",
-    "127",
-    "128",
-    "129",
-    "130",
-    "131",
-    "132",
-    "133",
-    "134",
-    "135",
-    "136",
-    "137",
-    "138",
-    "139",
-    "140",
-    "141",
-    "tnr",
-    "tny",
-    "tng",
-    "tcr",
-    "tcg",
-    "tcn",
-    "tllv",
-    "tllvr",
-    "tllvy",
-    "tllvg",
-    "tlrv",
-    "tlrvr",
-    "tlrvy",
-    "tlrvg",
-    "tlbv",
-    "tclv",
-    "tclvr",
-    "tclvg",
-    "tcrv",
-    "tcrvr",
-    "tcrvgv",
-    "tcbv",
-]
-
-labels = [
-    "0",
-    "red_1",
-    "red_2",
-    "red_3",
-    "red_4",
-    "red_5",
-    "red_6",
-    "red_7",
-    "red_8",
-    "red_9",
-    "green_1",
-    "green_2",
-    "green_3",
-    "green_4",
-    "green_5",
-    "green_6",
-    "green_7",
-    "green_8",
-    "green_9",
-    "yellow_1",
-    "yellow_3",
-    "yellow_2",
-]
 
 
 def get_classes(classes_path):
@@ -113,7 +17,7 @@ def get_classes(classes_path):
     return class_names, len(class_names)
 
 
-labels, _ = get_classes(f"{yolo_txt_dir}/classes.txt")
+labels, _ = get_classes("../../tt100k/classes.txt")
 
 # 匹配文件路径下的所有txt文件，并返回列表
 txt_glob = glob.glob(f"{yolo_txt_dir}/*.txt")
