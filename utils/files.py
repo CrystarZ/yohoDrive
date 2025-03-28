@@ -9,6 +9,7 @@ class SrcType(IntEnum):
     pic = 11
     video = 12
     avatar = 13
+    frame = 14
 
 
 def uniqueFileName(origin_name: str) -> str:
