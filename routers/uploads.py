@@ -1,9 +1,10 @@
 import os
+from PIL import Image
 from fastapi import APIRouter, HTTPException, UploadFile, Form
-from pydantic import FilePath
+from pydantic import BaseModel
 from . import pwd
 from db.mysql.database import database as mysql
-from db.mysql.models import Upload, User
+from db.mysql.models import Upload
 from .users import c_fd_user, find_user
 from config import decoder as conf
 from utils.files import SrcType, uniqueFileName, checkFileType
@@ -11,6 +12,10 @@ from utils.files import SrcType, uniqueFileName, checkFileType
 conf_db = conf(f"{pwd}/config.conf").Section("database").dict
 conf_be = conf(f"{pwd}/config.conf").Section("backend").dict
 router = APIRouter()
+
+
+class c_fd_upload(BaseModel):
+    id: int | None = None
 
 
 def save_dir(t: SrcType, root: str = pwd) -> str:
@@ -23,6 +28,8 @@ def save_dir(t: SrcType, root: str = pwd) -> str:
         d = f"{d}/videos"
     elif t is SrcType.avatar:
         d = f"{d}/avatar"
+    elif t is SrcType.frame:
+        d = f"{d}/frame"
     else:
         return None
     d = os.path.abspath(d)
@@ -37,10 +44,19 @@ def save_upload_file(file: UploadFile, t: SrcType | None = None) -> str | None:
             t = checkFileType(fn)
         savename = uniqueFileName(fn)
         savepath = os.path.join(save_dir(t), savename)
-        fn = savename
+        fn = savepath
         with open(savepath, "wb") as buffer:
             buffer.write(file.file.read())
     return fn
+
+
+def save_frame(filename: str, img: Image.Image):
+    fn = filename
+    t = SrcType.frame
+    savename = uniqueFileName(fn)
+    savepath = os.path.join(save_dir(t), savename)
+    img.save(savepath)
+    return savepath
 
 
 @router.post("/files/upload")
@@ -64,5 +80,21 @@ async def upload_file(file: UploadFile, user_id: int = Form()):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.post("/files/upload/fd")
+def find_upload(up: c_fd_upload):
+    db = mysql(**conf_db)
+    u = None
+    try:
+        if up.id is not None:
+            u = db.query(Upload).filter_by(id=up.id).first()
+        else:
+            raise HTTPException(status_code=400, detail="必须提供 id")
+        if u is None:
+            raise HTTPException(status_code=404, detail="Not find upload")
+        return u
     finally:
         db.close()
