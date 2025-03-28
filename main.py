@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI
-from routers import tests, uploads, users
+from routers import tests, uploads, users, predict
 from config import decoder as conf
 
 pwd = os.path.abspath(os.path.dirname(__file__))
@@ -12,3 +12,4 @@ app = FastAPI()
 app.include_router(tests.router)
 app.include_router(users.router)
 app.include_router(uploads.router)
+app.include_router(predict.router)
