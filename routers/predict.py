@@ -26,10 +26,15 @@ def get_classes(classes_path) -> Tuple[list[str], int]:
     return class_names, len(class_names)
 
 
-conf_dsign = conf(f"{pwd}/config.conf").Section("DSIGN").dict
+conf_ts = conf(f"{pwd}/config.conf").Section("DSIGN").dict
 conf_tl = conf(f"{pwd}/config.conf").Section("TL").dict
 conf_ocr = conf(f"{pwd}/config.conf").Section("OCR").dict
 conf_db = conf(f"{pwd}/config.conf").Section("database").dict
+
+ts_mpath = conf_ts["module_path"]
+ts_classes, _ = get_classes(conf_ts["classes_path"])
+ts_cuda = s2b(conf_ts["cuda"])
+ts_yolo = YOLO(module_path=ts_mpath, classes=ts_classes, phi="n", cuda=ts_cuda)
 
 tl_mpath = conf_tl["module_path"]
 tl_classes, _ = get_classes(conf_tl["classes_path"])
@@ -43,6 +48,19 @@ ocr = OCR(module_path=ocr_mpath, cuda=ocr_cuda)
 
 type det = Tuple[str, float, int, int, int, int, str | None, int | None]
 detkeys = ("class_name", "confidence", "xmin", "ymin", "xmax", "ymax", "tag", "num")
+
+
+def predict_traffic_signs(img: Image.Image) -> list[det] | None:
+    tss = ts_yolo.predict(img)
+    if tss is None:
+        return None
+    ttss = []
+    for i in tss:
+        C, c, t, l, b, r = i
+        C = str(ts_classes[C])
+        n = None
+        ttss.append((C, float(c), int(t), int(l), int(b), int(r), None, n))
+    return ttss
 
 
 def predict_traffic_lights(img: Image.Image) -> list[det] | None:
@@ -91,7 +109,9 @@ def Detecton(detection: det, upid) -> Detections:
 def detect(img: Image.Image, isSign: bool = False, isTl: bool = False) -> list[det]:
     detections: list[det] = []
     if isSign:
-        pass
+        ts_detections = predict_traffic_signs(img)
+        if ts_detections is not None:
+            detections += ts_detections
     if isTl:
         tl_detections = predict_traffic_lights(img)
         if tl_detections is not None:
@@ -106,7 +126,7 @@ def detectQuest(
     isSave: bool = False,
     userid: int = 0,
     savename: str = "frame.jpg",
-) -> str:
+):
     db = mysql(**conf_db)
     detections = detect(img=img, isSign=isSign, isTl=isTl)
     json_detections = []
@@ -128,7 +148,7 @@ def detectQuest(
             D = Detecton(d, up.id)
             db.add(D)
 
-    return json.dumps(json_detections)
+    return json_detections
 
 
 router = APIRouter()
@@ -188,7 +208,7 @@ async def receive_video(websocket: WebSocket):
                 savename=savename,
                 userid=userid,
             )
-            await websocket.send_text(response)
+            await websocket.send_text(json.dumps(response))
 
     except Exception as e:
         print(f"WebSocket 连接错误: {e}")
