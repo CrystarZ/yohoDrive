@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, Form
 from pydantic import BaseModel
 from . import pwd
 from db.mysql.database import database as mysql
-from db.mysql.models import Upload
+from db.mysql.models import Upload, UserLog
 from .users import c_fd_user, find_user
 from config import decoder as conf
 from utils.files import SrcType, uniqueFileName, checkFileType
@@ -69,13 +69,17 @@ async def upload_file(file: UploadFile, user_id: int = Form()):
             raise HTTPException(status_code=404, detail="User not found")
         user_id = u.id
         fn = save_upload_file(file)
-        if fn is not None:
-            up = Upload(filename=file.filename, filepath=fn, user_id=user_id)
-            db.add(up)
-            db.refresh(up)
-            return up
-        else:
+        if fn is None:
             raise HTTPException(status_code=500)
+        up = Upload(filename=file.filename, filepath=fn, user_id=user_id)
+        db.add(up)
+        db.refresh(up)
+
+        log = UserLog(user_id=user_id, upload_id=up.id, action="create_upload")
+        db.add(log)
+
+        db.refresh(up)
+        return up
 
     except Exception as e:
         db.rollback()
@@ -95,6 +99,11 @@ def find_upload(up: c_fd_upload):
             raise HTTPException(status_code=400, detail="必须提供 id")
         if u is None:
             raise HTTPException(status_code=404, detail="Not find upload")
+
+        log = UserLog(user_id=u.user_id, upload_id=u.id, action="find_upload")
+        db.add(log)
+
+        db.refresh(u)
         return u
     finally:
         db.close()
