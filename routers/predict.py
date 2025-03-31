@@ -59,7 +59,7 @@ def predict_traffic_signs(img: Image.Image) -> list[det] | None:
         C, c, t, l, b, r = i
         C = str(ts_classes[C])
         n = None
-        ttss.append((C, float(c), int(t), int(l), int(b), int(r), None, n))
+        ttss.append((C, float(c), int(l), int(t), int(r), int(b), None, n))
     return ttss
 
 
@@ -82,12 +82,12 @@ def predict_traffic_lights(img: Image.Image) -> list[det] | None:
             roi = img.crop(box)
             gray_roi = tomygray(roi, "G")
             n = int(ocr.predict(gray_roi))
-        ttls.append((C, float(c), int(t), int(l), int(b), int(r), None, n))
+        ttls.append((C, float(c), int(l), int(t), int(r), int(b), None, n))
     return ttls
 
 
 def Detecton(detection: det, upid) -> Detections:
-    C, c, t, l, b, r, T, n = detection
+    C, c, x1, y1, x2, y2, T, n = detection
     if T is None:
         T = 0
     if n is None:
@@ -95,11 +95,11 @@ def Detecton(detection: det, upid) -> Detections:
     d = Detections(
         class_name=C,
         confidence=c,
-        x_min=l,
-        y_min=t,
-        x_max=r,
-        y_max=b,
-        tag=t,
+        x_min=x1,
+        y_min=y1,
+        x_max=x2,
+        y_max=y2,
+        tag=T,
         num=n,
         upload_id=upid,
     )
