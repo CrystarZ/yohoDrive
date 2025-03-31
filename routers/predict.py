@@ -7,7 +7,7 @@ from fastapi import APIRouter, WebSocket, HTTPException
 from pydantic import BaseModel
 from .uploads import c_fd_upload, find_upload, save_frame
 from .users import c_fd_user, find_user
-from db.mysql.models import Upload, Detections
+from db.mysql.models import Upload, Detections, UserLog
 from DSIGN.yolo import YOLO
 from OCR.ocr import OCR, tomygray
 from . import pwd
@@ -126,6 +126,7 @@ def detectQuest(
     isSave: bool = False,
     userid: int = 0,
     savename: str = "frame.jpg",
+    upload_id: int | None = None,  # WARN: do not use
 ):
     db = mysql(**conf_db)
     detections = detect(img=img, isSign=isSign, isTl=isTl)
@@ -135,15 +136,19 @@ def detectQuest(
         json_detections.append(dict_data)
 
     if isSave:
-        user = find_user(c_fd_user(id=userid))
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        if upload_id is None:
+            user = find_user(c_fd_user(id=userid))
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
 
-        fn = savename
-        fp = save_frame(fn, img)
-        up = Upload(filename=fn, filepath=fp, user_id=user.id)
-        db.add(up)
-        db.refresh(up)
+            fn = savename
+            fp = save_frame(fn, img)
+            up = Upload(filename=fn, filepath=fp, user_id=user.id)
+            db.add(up)
+            db.refresh(up)
+        else:
+            up = find_upload(c_fd_upload(id=upload_id))
+
         for d in detections:
             D = Detecton(d, up.id)
             db.add(D)
@@ -156,17 +161,70 @@ router = APIRouter()
 
 class c_detect_idopt(BaseModel):
     upid: int
+    save: bool = False
     sign: bool = False
     tl: bool = False
 
 
+class c_fd_detect(BaseModel):
+    user_id: int
+    class_name: str
+
+
 @router.post("/detect/id")
 def detect_id(opt: c_detect_idopt):
-    upload = find_upload(c_fd_upload(id=opt.upid))
-    path = str(upload.filepath)
-    img = Image.open(path)
+    db = mysql(**conf_db)
+    try:
+        upload = find_upload(c_fd_upload(id=opt.upid))
+        if upload is None:
+            raise HTTPException(status_code=404, detail=f"Not found upid {opt.upid}")
+        path = str(upload.filepath)
+        img = Image.open(path)
+        detections = detectQuest(
+            img, isSign=opt.sign, isTl=opt.tl, isSave=opt.save, upload_id=upload.id
+        )
 
-    return detectQuest(img, isSign=opt.sign, isTl=opt.tl)
+        log = UserLog(
+            user_id=upload.user_id, upload_id=upload.id, action="detect_upload"
+        )
+        db.add(log)
+
+        return detections
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.post("/detect/fd")
+def detect_find(opt: c_fd_detect):
+    db = mysql(**conf_db)
+    try:
+        user_id = opt.user_id
+        class_name = opt.class_name
+        user = find_user(c_fd_user(id=user_id))
+        if user is None:
+            raise HTTPException(status_code=404, detail="Not find user")
+
+        results = (
+            db.query(Detections)
+            .join(Upload, Detections.upload_id == Upload.id)
+            .filter(Upload.id == user_id, Detections.class_name == class_name)
+            .all()
+        )
+
+        log = UserLog(user_id=user_id, action="find_detections")
+        db.add(log)
+
+        for i in results:
+            db.refresh(i)
+
+        return results
+
+    finally:
+        db.close()
 
 
 # import numpy as np

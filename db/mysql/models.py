@@ -29,7 +29,7 @@ class Upload(Base):
     at = Column(DateTime, default=datetime.now(timezone.utc))
     user_id = Column(Integer, ForeignKey("users.id"))
 
-    def __repe__(self):
+    def __repr__(self):
         return f"<Upload(name={self.filename},path={self.filepath})>"
 
 
@@ -47,5 +47,31 @@ class Detections(Base):
     num = Column(Integer, nullable=True)
     upload_id = Column(Integer, ForeignKey("uploads.id", use_alter=True))
 
-    def __repe__(self):
+    def __repr__(self):
         return f"<Class(name={self.class_name},source={self.upload_id})>"
+
+
+class Locations(Base):
+    __tablename__ = "locations"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    speed = Column(Float, nullable=True)
+    at = Column(DateTime, default=datetime.now(timezone.utc))
+
+
+class UserLog(Base):
+    __tablename__ = "userlogs"
+
+    id = Column(Integer, primary_key=True)
+    action = Column(String(255), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    upload_id = Column(Integer, ForeignKey("uploads.id", use_alter=True))
+    location_id = Column(Integer, ForeignKey("locations.id", use_alter=True))
+    description = Column(String(255))
+    at = Column(DateTime, default=datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<UserLog(id={self.id},action={self.action},user={self.user_id})>"
