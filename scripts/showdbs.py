@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from db.mysql.database import database as mysql
-from db.mysql.models import User, Upload, Detections
+from db.mysql.models import User, Upload, Detections, UserLog
 from config import decoder as conf
 
 pwd = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -35,6 +35,14 @@ def showdetections():
     db.close()
 
 
+def showlogs():
+    db = mysql(**conf_db)
+    E = db.query(UserLog).all()
+    for e in E:
+        print(e)
+    db.close()
+
+
 if __name__ == "__main__":
-    showusers()
+    showdetections()
     exit(0)

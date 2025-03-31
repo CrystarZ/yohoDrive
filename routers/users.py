@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from . import pwd
 from db.mysql.database import database as mysql
-from db.mysql.models import User
+from db.mysql.models import User, UserLog
 from config import decoder as conf
 from utils.isEmail import isEmail
 
@@ -32,6 +32,11 @@ def create_user(user: c_reg_user):
         user = User(username=user.username, password=user.password, email=user.email)
         db.add(user)
         db.refresh(user)
+
+        log = UserLog(user_id=user.id, action="regis_user")
+        db.add(log)
+
+        db.refresh(user)
         return user
     except Exception as e:
         db.rollback()
@@ -56,6 +61,11 @@ def find_user(user: c_fd_user):
             raise HTTPException(status_code=400, detail="必须提供 id,username 或 email")
         if u is None:
             raise HTTPException(status_code=404, detail="Not find user")
+
+        log = UserLog(user_id=u.id, action="find_user")
+        db.add(log)
+
+        db.refresh(u)
         return u
     finally:
         db.close()
@@ -67,6 +77,11 @@ def decreate(user: c_fd_user):
     try:
         u = find_user(user)
         db.delete(u)
+
+        log = UserLog(user_id=u.id, action="deregis_user")
+        db.add(log)
+
+        db.refresh(u)
         return u
     except Exception as e:
         raise e
