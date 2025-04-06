@@ -6,7 +6,7 @@ from PIL import Image
 from fastapi import APIRouter, WebSocket, HTTPException
 from pydantic import BaseModel
 from .uploads import c_fd_upload, find_upload, save_frame
-from .users import c_fd_user, find_user
+from .users import c_fd_user, r_fd_user
 from db.mysql.models import Upload, Detections, UserLog
 from DSIGN.yolo import YOLO
 from OCR.ocr import OCR, tomygray
@@ -139,7 +139,7 @@ def detectQuest(
 
     if isSave:
         if upload_id is None:
-            user = find_user(c_fd_user(id=userid))
+            user = r_fd_user(db, c_fd_user(id=userid))
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
@@ -206,7 +206,7 @@ def detect_find(opt: c_fd_detect):
     try:
         user_id = opt.user_id
         class_name = opt.class_name
-        user = find_user(c_fd_user(id=user_id))
+        user = r_fd_user(db, c_fd_user(id=user_id))
         if user is None:
             raise HTTPException(status_code=404, detail="Not find user")
 

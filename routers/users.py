@@ -22,6 +22,31 @@ class c_fd_user(BaseModel):
     username: str | None = None
 
 
+class c_login(BaseModel):
+    username: str
+    password: str
+
+
+def fd_user(
+    db: mysql,
+    id: int | None = None,
+    email: str | None = None,
+    username: str | None = None,
+) -> User | None:
+    u = None
+    if id is not None:
+        u = db.query(User).filter_by(id=id).first()
+    elif email is not None:
+        u = db.query(User).filter_by(email=email).first()
+    elif username is not None:
+        u = db.query(User).filter_by(username=username).first()
+    return u
+
+
+def r_fd_user(db: mysql, user: c_fd_user) -> User | None:
+    return fd_user(db, id=user.id, username=user.username, email=user.email)
+
+
 @router.post("/users/regis")
 def create_user(user: c_reg_user):
     db = mysql(**conf_db)
@@ -29,6 +54,11 @@ def create_user(user: c_reg_user):
         if user.email and not isEmail(user.email):
             print("cant")
             raise HTTPException(status_code=400, detail="邮箱格式不正确")
+
+        u = fd_user(db, username=user.username, email=user.email)
+        if u is not None:
+            raise HTTPException(status_code=500, detail="用户已存在")
+
         user = User(username=user.username, password=user.password, email=user.email)
         db.add(user)
         db.refresh(user)
@@ -45,28 +75,49 @@ def create_user(user: c_reg_user):
         db.close()
 
 
+@router.post("/users/login")
+def login(info: c_login):
+    db = mysql(**conf_db)
+    try:
+        name = info.username
+        pwd = info.password
+        u = fd_user(db, id=None, username=name, email=None)
+        if u is None:
+            raise HTTPException(status_code=404, detail="未找到指定用户")
+
+        if pwd != u.password:
+            raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+        log = UserLog(user_id=u.id, action="login")
+        db.add(log)
+
+        db.refresh(u)
+        return {"msg": "登录成功", "id": u.id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        db.close()
+
+
 @router.post("/users/bg/fd")  # 后台
 def find_user(user: c_fd_user):
     db = mysql(**conf_db)
-    u = None
     try:
-        if user.id is not None:
-            u = db.query(User).filter_by(id=user.id).first()
-        elif user.email is not None:
-            u = db.query(User).filter_by(email=user.email).first()
-        elif user.username is not None:
-            u = db.query(User).filter_by(username=user.username).first()
-        else:
-            print("test")
-            raise HTTPException(status_code=400, detail="必须提供 id,username 或 email")
+        u = r_fd_user(db, user)
         if u is None:
-            raise HTTPException(status_code=404, detail="Not find user")
+            raise HTTPException(status_code=404, detail="未找到指定用户")
 
         log = UserLog(user_id=u.id, action="find_user")
         db.add(log)
 
         db.refresh(u)
         return u
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     finally:
         db.close()
 
@@ -75,7 +126,9 @@ def find_user(user: c_fd_user):
 def decreate(user: c_fd_user):
     db = mysql(**conf_db)
     try:
-        u = find_user(user)
+        u = r_fd_user(db, user)
+        if u is None:
+            raise HTTPException(status_code=404, detail="未找到指定用户")
         db.delete(u)
 
         log = UserLog(user_id=u.id, action="deregis_user")
