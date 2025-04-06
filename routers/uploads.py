@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from . import pwd
 from db.mysql.database import database as mysql
 from db.mysql.models import Upload, UserLog
-from .users import c_fd_user, find_user
+from .users import c_fd_user, r_fd_user
 from config import decoder as conf
 from utils.files import SrcType, uniqueFileName, checkFileType
 
@@ -63,10 +63,9 @@ def save_frame(filename: str, img: Image.Image):
 async def upload_file(file: UploadFile, user_id: int = Form()):
     db = mysql(**conf_db)
     try:
-        user = c_fd_user(id=user_id)
-        u = find_user(user)
-        if not u:
-            raise HTTPException(status_code=404, detail="User not found")
+        u = r_fd_user(db, c_fd_user(id=user_id))
+        if u is None:
+            raise HTTPException(status_code=404, detail="未找到指定用户")
         user_id = u.id
         fn = save_upload_file(file)
         if fn is None:
