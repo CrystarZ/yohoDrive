@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import Boolean
 from . import pwd
 from db.mysql.database import database as mysql
 from db.mysql.models import User, UserLog
@@ -50,15 +51,19 @@ def r_fd_user(db: mysql, user: c_fd_user) -> User | None:
 @router.post("/users/regis")
 def create_user(user: c_reg_user):
     db = mysql(**conf_db)
+    if user.email and not isEmail(user.email):
+        print("cant")
+        raise HTTPException(status_code=400, detail="邮箱格式不正确")
+
+    u = fd_user(db, username=user.username)
+    if u is not None:
+        raise HTTPException(status_code=500, detail="用户已存在,指定用户名重复")
+
+    u = fd_user(db, email=user.email)
+    if u is not None:
+        raise HTTPException(status_code=500, detail="用户已存在,指定邮箱重复")
+
     try:
-        if user.email and not isEmail(user.email):
-            print("cant")
-            raise HTTPException(status_code=400, detail="邮箱格式不正确")
-
-        u = fd_user(db, username=user.username, email=user.email)
-        if u is not None:
-            raise HTTPException(status_code=500, detail="用户已存在")
-
         user = User(username=user.username, password=user.password, email=user.email)
         db.add(user)
         db.refresh(user)
@@ -68,6 +73,7 @@ def create_user(user: c_reg_user):
 
         db.refresh(user)
         return user
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -78,16 +84,16 @@ def create_user(user: c_reg_user):
 @router.post("/users/login")
 def login(info: c_login):
     db = mysql(**conf_db)
+    name = info.username
+    pwd = info.password
+    u = fd_user(db, id=None, username=name, email=None)
+    if u is None:
+        raise HTTPException(status_code=404, detail="未找到指定用户")
+
+    if pwd != u.password:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
     try:
-        name = info.username
-        pwd = info.password
-        u = fd_user(db, id=None, username=name, email=None)
-        if u is None:
-            raise HTTPException(status_code=404, detail="未找到指定用户")
-
-        if pwd != u.password:
-            raise HTTPException(status_code=401, detail="用户名或密码错误")
-
         log = UserLog(user_id=u.id, action="login")
         db.add(log)
 
@@ -95,8 +101,8 @@ def login(info: c_login):
         return {"msg": "登录成功", "id": u.id}
 
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
     finally:
         db.close()
 
@@ -104,11 +110,10 @@ def login(info: c_login):
 @router.post("/users/bg/fd")  # 后台
 def find_user(user: c_fd_user):
     db = mysql(**conf_db)
+    u = r_fd_user(db, user)
+    if u is None:
+        raise HTTPException(status_code=404, detail="未找到指定用户")
     try:
-        u = r_fd_user(db, user)
-        if u is None:
-            raise HTTPException(status_code=404, detail="未找到指定用户")
-
         log = UserLog(user_id=u.id, action="find_user")
         db.add(log)
 
@@ -116,8 +121,8 @@ def find_user(user: c_fd_user):
         return u
 
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
     finally:
         db.close()
 
@@ -125,10 +130,11 @@ def find_user(user: c_fd_user):
 @router.post("/users/bg/deregis")
 def decreate(user: c_fd_user):
     db = mysql(**conf_db)
+    u = r_fd_user(db, user)
+    if u is None:
+        raise HTTPException(status_code=404, detail="未找到指定用户")
+
     try:
-        u = r_fd_user(db, user)
-        if u is None:
-            raise HTTPException(status_code=404, detail="未找到指定用户")
         db.delete(u)
 
         log = UserLog(user_id=u.id, action="deregis_user")
@@ -137,6 +143,7 @@ def decreate(user: c_fd_user):
         db.refresh(u)
         return u
     except Exception as e:
-        raise e
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
