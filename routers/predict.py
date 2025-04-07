@@ -128,6 +128,7 @@ def detectQuest(
     isSave: bool = False,
     userid: int = 0,
     savename: str = "frame.jpg",
+    timestamp: int | None = None,  # 同步序号
     upload_id: int | None = None,  # WARN: do not use
 ):
     db = mysql(**conf_db)
@@ -135,6 +136,8 @@ def detectQuest(
     json_detections = []
     for d in detections:
         dict_data = dict(zip(detkeys, d))
+        if timestamp is not None:
+            dict_data["timestamp"] = timestamp  # type: ignore
         json_detections.append(dict_data)
 
     if isSave:
@@ -262,9 +265,10 @@ async def receive_video(websocket: WebSocket):
             # save options
             isSave = data.get("save", False)
             savename = data.get("savename", "frame.jpg")
-            userid = int(data.get("user_id", 0))
+            userid = data.get("user_id", 0)
+            timestamp = data.get("timestamp", None)
 
-            response = detectQuest(
+            result = detectQuest(
                 img,
                 isSign=isSign,
                 isTl=isTl,
@@ -272,6 +276,14 @@ async def receive_video(websocket: WebSocket):
                 savename=savename,
                 userid=userid,
             )
+
+            if timestamp is not None:
+                response = dict()
+                response["timestamp"] = timestamp
+                response["result"] = result
+            else:
+                response = result
+
             await websocket.send_text(json.dumps(response))
 
     except Exception as e:
