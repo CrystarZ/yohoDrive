@@ -18,6 +18,20 @@ class c_fd_upload(BaseModel):
     id: int | None = None
 
 
+def fd_up(
+    db: mysql,
+    id: int | None = None,
+) -> Upload | None:
+    u = None
+    if id is not None:
+        u = db.query(Upload).filter_by(id=id).first()
+    return u
+
+
+def r_fd_up(db: mysql, up: c_fd_upload) -> Upload | None:
+    return fd_up(db, id=up.id)
+
+
 def save_dir(t: SrcType, root: str = pwd) -> str:
     d = f"{root}/{conf_be.get('srcpath')}"
     if t is SrcType.default:
@@ -62,14 +76,15 @@ def save_frame(filename: str, img: Image.Image):
 @router.post("/files/upload")
 async def upload_file(file: UploadFile, user_id: int = Form()):
     db = mysql(**conf_db)
+    u = r_fd_user(db, c_fd_user(id=user_id))
+    if u is None:
+        raise HTTPException(status_code=404, detail="未找到指定用户")
+    user_id = u.id
+    fn = save_upload_file(file)
+    if fn is None:
+        raise HTTPException(status_code=500)
+
     try:
-        u = r_fd_user(db, c_fd_user(id=user_id))
-        if u is None:
-            raise HTTPException(status_code=404, detail="未找到指定用户")
-        user_id = u.id
-        fn = save_upload_file(file)
-        if fn is None:
-            raise HTTPException(status_code=500)
         up = Upload(filename=file.filename, filepath=fn, user_id=user_id)
         db.add(up)
         db.refresh(up)
@@ -91,18 +106,19 @@ async def upload_file(file: UploadFile, user_id: int = Form()):
 def find_upload(up: c_fd_upload):
     db = mysql(**conf_db)
     u = None
-    try:
-        if up.id is not None:
-            u = db.query(Upload).filter_by(id=up.id).first()
-        else:
-            raise HTTPException(status_code=400, detail="必须提供 id")
-        if u is None:
-            raise HTTPException(status_code=404, detail="Not find upload")
+    u = r_fd_up(db, up)
+    if u is None:
+        raise HTTPException(status_code=404, detail="未找到指定资源")
 
+    try:
         log = UserLog(user_id=u.user_id, upload_id=u.id, action="find_upload")
         db.add(log)
 
         db.refresh(u)
         return u
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()

@@ -5,7 +5,7 @@ from typing import Tuple
 from PIL import Image
 from fastapi import APIRouter, WebSocket, HTTPException
 from pydantic import BaseModel
-from .uploads import c_fd_upload, find_upload, save_frame
+from .uploads import c_fd_upload, r_fd_up, save_frame
 from .users import c_fd_user, r_fd_user
 from db.mysql.models import Upload, Detections, UserLog
 from DSIGN.yolo import YOLO
@@ -149,11 +149,12 @@ def detectQuest(
             db.add(up)
             db.refresh(up)
         else:
-            up = find_upload(c_fd_upload(id=upload_id))
+            up = r_fd_up(db, c_fd_upload(id=upload_id))
 
-        for d in detections:
-            D = Detecton(d, up.id)
-            db.add(D)
+        if up is not None:
+            for d in detections:
+                D = Detecton(d, up.id)
+                db.add(D)
 
     return json_detections
 
@@ -177,9 +178,9 @@ class c_fd_detect(BaseModel):
 def detect_id(opt: c_detect_idopt):
     db = mysql(**conf_db)
     try:
-        upload = find_upload(c_fd_upload(id=opt.upid))
+        upload = r_fd_up(db, c_fd_upload(id=opt.upid))
         if upload is None:
-            raise HTTPException(status_code=404, detail=f"Not found upid {opt.upid}")
+            raise HTTPException(status_code=404, detail="未找到指定资源")
         path = str(upload.filepath)
         img = Image.open(path)
         detections = detectQuest(
@@ -225,6 +226,9 @@ def detect_find(opt: c_fd_detect):
 
         return results
 
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
