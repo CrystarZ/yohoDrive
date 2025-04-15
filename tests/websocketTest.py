@@ -8,6 +8,7 @@ import json
 uri = "ws://localhost:8000/detect/con"
 d_tl: bool = True
 d_sign: bool = True
+d_pridict: bool = True
 
 
 # 还原box
@@ -28,6 +29,7 @@ def rect(
 
 
 async def send_video():
+    seq = 0
     async with websockets.connect(uri) as websocket:
         # cap = cv2.VideoCapture(0)  # 0 代表摄像头
         cap = cv2.VideoCapture("./assets/sign.mp4")
@@ -54,7 +56,16 @@ async def send_video():
             buffer = cv2.resize(frame, (weidth, height))  # resize
             _, buffer = cv2.imencode(".jpg", buffer)
             jpg_as_text = base64.b64encode(buffer).decode("utf-8")
-            message = json.dumps({"frame": jpg_as_text, "tl": d_tl, "sign": d_sign})
+            message = json.dumps(
+                {
+                    "frame": jpg_as_text,
+                    "tl": d_tl,
+                    "sign": d_sign,
+                    "predict": d_pridict,
+                    "timestamp": seq,
+                }
+            )
+            seq += 1
             await websocket.send(message)
 
             response = await websocket.recv()
@@ -62,7 +73,7 @@ async def send_video():
             print("服务器返回:", data)
 
             # 画 bboxes
-            for i in data:
+            for i in data["result"]:
                 xm, ym, xM, yM = rect(
                     (i["xmin"], i["ymin"], i["xmax"], i["ymax"]),
                     (w_orig, h_orig),
