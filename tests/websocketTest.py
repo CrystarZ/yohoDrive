@@ -30,9 +30,9 @@ def rect(
 async def send_video():
     async with websockets.connect(uri) as websocket:
         # cap = cv2.VideoCapture(0)  # 0 代表摄像头
-        cap = cv2.VideoCapture("./.output/video.mp4")
-        weidth = 256
-        height = 320
+        cap = cv2.VideoCapture("./assets/sign.mp4")
+        weidth = 320
+        height = 240
         color = (0, 255, 0)
 
         fps = int(cap.get(cv2.CAP_PROP_FPS))  # 获取视频的原始帧率
