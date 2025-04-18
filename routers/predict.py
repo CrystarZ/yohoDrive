@@ -6,7 +6,6 @@ from collections import deque
 from PIL import Image
 from fastapi import APIRouter, WebSocket, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.engine import result
 from .uploads import c_fd_upload, r_fd_up, save_frame
 from .users import c_fd_user, r_fd_user
 from db.mysql.models import Upload, Detections, UserLog
@@ -82,12 +81,14 @@ def predict_traffic_lights(img: Image.Image) -> list[det] | None:
             box = (l, t, r, b)
             roi = img.crop(box)
             gray_roi = tomygray(roi, "R")
-            n = int(ocr.predict(gray_roi))
-        if C == "greentime":
+            n = ocr.predict(gray_roi)
+        elif C == "greentime":
             box = (l, t, r, b)
             roi = img.crop(box)
             gray_roi = tomygray(roi, "G")
-            n = int(ocr.predict(gray_roi))
+            n = ocr.predict(gray_roi)
+        if n is None:
+            n = None
         ttls.append((C, float(c), int(l), int(t), int(r), int(b), None, n))
     return ttls
 
