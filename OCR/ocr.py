@@ -13,18 +13,25 @@ def tomygray(image: Image.Image, ch: str) -> Image.Image:
 
 class OCR(object):
     def __init__(self, module_path: str = "./weights/cnn2.pth", cuda: bool = True):
+        self.module_path = module_path
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.net = self.generate()
+
+    def generate(self):
         net = OCRNUM()
-        net.load_state_dict(torch.load(module_path))
-        net.eval()
-        if cuda:
-            net.cuda()
-        self.net = net
+        net.load_state_dict(torch.load(self.module_path, map_location=self.device))
+        net = net.to(self.device)
+        net = net.eval()
+        print("{} model, and classes loaded.".format(self.module_path))
+
+        return net
 
     def test(self, gray_img: np.ndarray):
         transform = transforms.ToTensor()
         input = cv2.resize(gray_img, (28, 28), interpolation=cv2.INTER_LINEAR)
         input = transform(input)
         inputs = torch.unsqueeze(input, dim=0)
+        inputs = inputs.to(self.device)
 
         test_output = self.net(inputs)
         pred_y = torch.max(test_output, 1)[1].data.numpy()

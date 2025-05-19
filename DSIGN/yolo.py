@@ -29,7 +29,7 @@ class YOLO(object):
         self.confidence = confidence
         self.nms_iou = nms_iou
         self.letterbox_image = letterbox_image
-        self.cuda = cuda
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.class_names, self.num_classes = classes, len(classes)
         self.bbox_util = DecodeBox(
@@ -37,27 +37,23 @@ class YOLO(object):
         )
         self.net = self.generate()
 
-    def generate(self, onnx=False):
+    def generate(self):
         # 建立yolo模型
         net = YoloBody(self.input_shape, self.num_classes, self.phi)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        net.load_state_dict(torch.load(self.module_path, map_location=device))
+        net.load_state_dict(torch.load(self.module_path, map_location=self.device))
+        net = net.to(self.device)
         net = net.fuse().eval()
         print("{} model, and classes loaded.".format(self.module_path))
-        if not onnx:
-            if self.cuda:
-                net = nn.DataParallel(net)
-                net = net.cuda()
+
+        #     if self.device.type == "cuda" and torch.cuda.device_count() > 1:
+        #         net = nn.DataParallel(net)
+
         return net
 
     def preprocessing_image(self, image: Image.Image) -> Tuple[Tensor, imgshape]:
-        # ---  图像预处理  --- #
-        #
-
+        #  图像预处理
         image_shape = image.size  # 获取图像尺寸
-
-        # 强制转换成RGB图像，防止灰度图报错
-        if len(image.mode) != 3:
+        if len(image.mode) != 3:  # 强制转换成RGB图像，防止灰度图报错
             image = image.convert("RGB")
 
         # RESIZE
@@ -91,14 +87,9 @@ class YOLO(object):
     type fres = Tuple[int, float, int, int, int, int]
 
     def detect_image(self, image_data: Tensor, image_shape: imgshape) -> res | None:
-        # --- 模型预测 --- #
-        #
-
+        # 模型预测
         with torch.no_grad():
-            images = image_data
-            if self.cuda:
-                images = images.cuda()
-
+            images = image_data.to(self.device)
             outputs = self.net(images)
             outputs = self.bbox_util.decode_box(outputs)
 
