@@ -35,18 +35,15 @@ conf_db = conf(f"{pwd}/config.conf").Section("database").dict
 ts_mpath = conf_ts["module_path"]
 ts_classes, _ = get_classes(conf_ts["classes_path"])
 ts_phi = conf_ts["phi"]
-ts_cuda = s2b(conf_ts["cuda"])
-ts_yolo = YOLO(module_path=ts_mpath, classes=ts_classes, phi=ts_phi, cuda=ts_cuda)
+ts_yolo = YOLO(module_path=ts_mpath, classes=ts_classes, phi=ts_phi)
 
 tl_mpath = conf_tl["module_path"]
 tl_classes, _ = get_classes(conf_tl["classes_path"])
 tl_phi = conf_tl["phi"]
-tl_cuda = s2b(conf_tl["cuda"])
-tl_yolo = YOLO(module_path=tl_mpath, classes=tl_classes, phi=tl_phi, cuda=tl_cuda)
+tl_yolo = YOLO(module_path=tl_mpath, classes=tl_classes, phi=tl_phi)
 
 ocr_mpath = conf_ocr["module_path"]
-ocr_cuda = s2b(conf_ocr["cuda"])
-ocr = OCR(module_path=ocr_mpath, cuda=ocr_cuda)
+ocr = OCR(module_path=ocr_mpath)
 
 
 # NOTE: DETECT

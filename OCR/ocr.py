@@ -12,7 +12,7 @@ def tomygray(image: Image.Image, ch: str) -> Image.Image:
 
 
 class OCR(object):
-    def __init__(self, module_path: str = "./weights/cnn2.pth", cuda: bool = True):
+    def __init__(self, module_path: str = "./weights/cnn2.pth"):
         self.module_path = module_path
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.net = self.generate()

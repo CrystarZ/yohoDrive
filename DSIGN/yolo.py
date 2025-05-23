@@ -21,7 +21,6 @@ class YOLO(object):
         confidence: float = 0.5,  # 置信度
         nms_iou: float = 0.3,  # 非极大抑制所用到的nms_iou大小
         letterbox_image: bool = True,  # 该变量用于控制是否使用letterbox_image对输入图像进行不失真的resize，
-        cuda: bool = True,  # 是否使用Cuda
     ) -> None:
         self.module_path = module_path
         self.input_shape = input_shape
