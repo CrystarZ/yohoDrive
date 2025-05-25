@@ -2,10 +2,13 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from DSIGN.yolo import YOLO
 from PIL import Image
 from torchvision import transforms
+
+CLASSES_PATH = "./weights/tl_classes.txt"
+WEIGHT_PATH = "./weights/tl_v8s.pth"
+TEST_PATH = "./img/tl_test.jpg"
 
 
 def get_classes(classes_path):
@@ -18,14 +21,10 @@ def get_classes(classes_path):
 to_pil = transforms.ToPILImage()
 
 if __name__ == "__main__":
-    classes, _ = get_classes("./tl_classes.txt")
-    yolo = YOLO(
-        module_path="./weights/tl_v8s.pth",
-        classes=classes,
-        cuda=False,
-    )
+    classes, _ = get_classes(CLASSES_PATH)
+    yolo = YOLO(module_path=WEIGHT_PATH, classes=classes)
 
-    img = Image.open("./img/tl_test.jpg")
+    img = Image.open(TEST_PATH)
     result = yolo.predict(img)
     image = yolo.drawResults(img, result)
     image.show()
