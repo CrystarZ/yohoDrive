@@ -5,11 +5,12 @@ from typing import Tuple
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import torch
+from torch import Tensor
 from torch.nn.modules import Module
-import torch.optim as optim
 from torch.optim.optimizer import Optimizer
-import torch.utils.data as Data
 from torch.utils.data import DataLoader
+import torch.utils.data as Data
+import torch.optim as optim
 import numpy as np
 
 from DSIGN.nets.yolo import YoloBody
@@ -35,13 +36,18 @@ def yolo_dataset_collate(batch):
     return images, bboxes
 
 
-def fit_step(model: Module, optimizer: Optimizer, lossfunc, x, train: bool = True):
-    images, bboxes = x
-
-    outputs = model(images)
-    optimizer.zero_grad()
-    loss_value = lossfunc(outputs, bboxes)
+def fit_step(
+    model: Module,
+    optimizer: Optimizer,
+    lossfunc,
+    x: Tensor,  # images
+    y: Tensor,  # bboxes
+    train: bool = True,
+):
+    outputs = model(x)
+    loss_value = lossfunc(outputs, y)
     if train:
+        optimizer.zero_grad()
         loss_value.backward()
         optimizer.step()
 
@@ -56,19 +62,17 @@ def fit_epoch(
     valdata: DataLoader,
     device,
 ) -> Tuple[float, float]:
-    model = model.to(device)
-
     loss = 0
     valoss = 0
+    model = model.to(device)
+
     model = model.train()
-
     loop = tqdm(enumerate(traindata), total=len(traindata), desc="Train", ncols=100)
-    for step, batch in loop:
-        images, bboxes = batch
-        images = images.to(device)
-        bboxes = bboxes.to(device)
+    for step, (x, y) in loop:
+        x = x.to(device)
+        y = y.to(device)
 
-        loss_value = fit_step(model, optimizer, lossfunc, (images, bboxes))
+        loss_value = fit_step(model, optimizer, lossfunc, x, y)
         loss += loss_value.item()
 
         loop.set_postfix(
@@ -76,14 +80,13 @@ def fit_epoch(
         )
 
     model = model.eval()
-    loop = tqdm(enumerate(valdata), total=len(valdata), desc="Eval", ncols=100)
+    loop = tqdm(enumerate(valdata), total=len(valdata), desc="Eval ", ncols=100)
     with torch.no_grad():
-        for step, batch in loop:
-            images, bboxes = batch
-            images = images.to(device)
-            bboxes = bboxes.to(device)
+        for step, (x, y) in loop:
+            x = x.to(device)
+            y = y.to(device)
 
-            loss_value = fit_step(model, optimizer, lossfunc, (images, bboxes), False)
+            loss_value = fit_step(model, optimizer, lossfunc, x, y, False)
             valoss += loss_value.item()
 
             loop.set_postfix(
@@ -93,23 +96,19 @@ def fit_epoch(
     return loss, valoss
 
 
-if __name__ == "__main__":
+def train():
     LR = 1e-3
-    EPOCH = 100
+    EPOCH = 300
     BATCH_SIZE = 16
     INPUT_SHAPE = [640, 640]
+    DATASET_PATH = "./datasets/traffic_light_VOC"
     SAVE_PATH = "./.output"
 
-    trainDataset = VOCDataset("./datasets/traffic_light_VOC", INPUT_SHAPE, sets="train")
-    valDataset = VOCDataset("./datasets/traffic_light_VOC", INPUT_SHAPE, sets="val")
+    trainDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="train")
+    valDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="val")
     classes = trainDataset.classes + valDataset.classes
     trainDataset.reload(classes=classes)
     valDataset.reload(classes=classes)
-
-    model = YoloBody(INPUT_SHAPE, len(classes), "l")
-    optimizer = optim.Adam(model.parameters(), LR, betas=(0.937, 0.999))
-    lossfunc = Loss(model)
-
     trainLoader = Data.DataLoader(
         dataset=trainDataset,
         batch_size=BATCH_SIZE,
@@ -121,6 +120,9 @@ if __name__ == "__main__":
         collate_fn=yolo_dataset_collate,
     )
 
+    model = YoloBody(INPUT_SHAPE, len(classes), "l")
+    optimizer = optim.Adam(model.parameters(), LR, betas=(0.937, 0.999))
+    lossfunc = Loss(model)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     loss_history = []
@@ -133,6 +135,7 @@ if __name__ == "__main__":
         loss = loss / len(trainLoader)
         valoss = valoss / len(valLoader)
         print(f"EPOCH: {epoch} | loss: {loss},valoss: {valoss}")
+
         loss_history.append(loss)
         valoss_history.append(valoss)
         if len(valoss_history) <= 1 or valoss <= min(valoss_history):
@@ -146,3 +149,7 @@ if __name__ == "__main__":
             with open(f"{SAVE_PATH}/val_loss.txt", "w", encoding="utf-8") as f:
                 for i in valoss_history:
                     f.write(str(i) + "\n")
+
+
+if __name__ == "__main__":
+    train()
