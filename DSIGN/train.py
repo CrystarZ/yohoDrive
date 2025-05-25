@@ -1,5 +1,6 @@
 import os
 import sys
+from tqdm import tqdm
 from typing import Tuple
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -34,14 +35,15 @@ def yolo_dataset_collate(batch):
     return images, bboxes
 
 
-def fit_step(model: Module, optimizer: Optimizer, lossfunc, x):
+def fit_step(model: Module, optimizer: Optimizer, lossfunc, x, train: bool = True):
     images, bboxes = x
 
     outputs = model(images)
     optimizer.zero_grad()
     loss_value = lossfunc(outputs, bboxes)
-    loss_value.backward()
-    optimizer.step()
+    if train:
+        loss_value.backward()
+        optimizer.step()
 
     return loss_value
 
@@ -54,27 +56,39 @@ def fit_epoch(
     valdata: DataLoader,
     device,
 ) -> Tuple[float, float]:
+    model = model.to(device)
+
     loss = 0
     valoss = 0
     model = model.train()
-    model = model.to(device)
-    for step, batch in enumerate(traindata):
+
+    loop = tqdm(enumerate(traindata), total=len(traindata), desc="Train", ncols=100)
+    for step, batch in loop:
         images, bboxes = batch
         images = images.to(device)
         bboxes = bboxes.to(device)
 
         loss_value = fit_step(model, optimizer, lossfunc, (images, bboxes))
         loss += loss_value.item()
-        print(f"train {step}/{len(traindata)}| loss: {loss}, lr: {get_lr(optimizer)}")
 
-    for step, batch in enumerate(valdata):
-        images, bboxes = batch
-        images = images.to(device)
-        bboxes = bboxes.to(device)
+        loop.set_postfix(
+            {"loss": f"{loss / (step + 1):.4f}", "lr": f"{get_lr(optimizer):.6f}"}
+        )
 
-        loss_value = fit_step(model, optimizer, lossfunc, (images, bboxes))
-        valoss += loss_value.item()
-        print(f"val {step}/{len(valdata)}| valoss: {loss}, lr: {get_lr(optimizer)}")
+    model = model.eval()
+    loop = tqdm(enumerate(valdata), total=len(valdata), desc="Eval", ncols=100)
+    with torch.no_grad():
+        for step, batch in loop:
+            images, bboxes = batch
+            images = images.to(device)
+            bboxes = bboxes.to(device)
+
+            loss_value = fit_step(model, optimizer, lossfunc, (images, bboxes), False)
+            valoss += loss_value.item()
+
+            loop.set_postfix(
+                {"loss": f"{valoss / (step + 1):.4f}", "lr": f"{get_lr(optimizer):.6f}"}
+            )
 
     return loss, valoss
 
@@ -82,12 +96,16 @@ def fit_epoch(
 if __name__ == "__main__":
     LR = 1e-3
     EPOCH = 100
-    BATCH_SIZE = 25
+    BATCH_SIZE = 16
     INPUT_SHAPE = [640, 640]
+    SAVE_PATH = "./.output"
 
     trainDataset = VOCDataset("./datasets/traffic_light_VOC", INPUT_SHAPE, sets="train")
     valDataset = VOCDataset("./datasets/traffic_light_VOC", INPUT_SHAPE, sets="val")
-    classes = trainDataset.classes
+    classes = trainDataset.classes + valDataset.classes
+    trainDataset.reload(classes=classes)
+    valDataset.reload(classes=classes)
+
     model = YoloBody(INPUT_SHAPE, len(classes), "l")
     optimizer = optim.Adam(model.parameters(), LR, betas=(0.937, 0.999))
     lossfunc = Loss(model)
@@ -118,6 +136,13 @@ if __name__ == "__main__":
         loss_history.append(loss)
         valoss_history.append(valoss)
         if len(valoss_history) <= 1 or valoss <= min(valoss_history):
+            print("Save best model to best_weights.pth")
             save_state_dict = model.state_dict()
-            print("Save best model to best_epoch_weights.pth")
-            torch.save(save_state_dict, "./.output/best_epoch_weights.pth")
+            torch.save(save_state_dict, f"{SAVE_PATH}/best_weights.pth")
+
+            with open(f"{SAVE_PATH}/loss.txt", "w", encoding="utf-8") as f:
+                for i in loss_history:
+                    f.write(str(i) + "\n")
+            with open(f"{SAVE_PATH}/val_loss.txt", "w", encoding="utf-8") as f:
+                for i in valoss_history:
+                    f.write(str(i) + "\n")
