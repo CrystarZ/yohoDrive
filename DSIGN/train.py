@@ -101,6 +101,8 @@ def train():
     EPOCH = 300
     BATCH_SIZE = 16
     INPUT_SHAPE = [640, 640]
+    PHI = "s"
+    BACKBONE = "MNV3"
     DATASET_PATH = "./datasets/traffic_light_VOC"
     SAVE_PATH = "./.output"
 
@@ -120,7 +122,7 @@ def train():
         collate_fn=yolo_dataset_collate,
     )
 
-    model = YoloBody(INPUT_SHAPE, len(classes), "l")
+    model = YoloBody(num_classes=len(classes), phi=PHI, bb=BACKBONE)
     optimizer = optim.Adam(model.parameters(), LR, betas=(0.937, 0.999))
     lossfunc = Loss(model)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
