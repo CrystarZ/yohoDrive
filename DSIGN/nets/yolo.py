@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from ..nets.backbone import Backbone, C2f, Conv
+from ..nets.mobilenetv3 import MobileNetV3
 from ..utils.utils_bbox import make_anchors
 
 
@@ -61,7 +62,7 @@ class DFL(nn.Module):
 
 
 class YoloBody(nn.Module):
-    def __init__(self, num_classes, phi):
+    def __init__(self, num_classes: int, phi: str = "l", bb: str = "CSPDarknet"):
         super(YoloBody, self).__init__()
         depth_dict = {"n": 0.33, "s": 0.33, "m": 0.67, "l": 1.00, "x": 1.00}
         width_dict = {"n": 0.25, "s": 0.50, "m": 0.75, "l": 1.00, "x": 1.25}
@@ -75,11 +76,14 @@ class YoloBody(nn.Module):
         base_channels = int(wid_mul * 64)  # 64
         base_depth = max(round(dep_mul * 3), 1)  # 3
 
+        backbone_dict = {"CSPDarknet": Backbone, "MNV3": MobileNetV3}
+        backbone = backbone_dict[bb]
+
         # NOTE: backbone
         # 256,80,80
         # 512,40,40
         # 512,20,20
-        self.backbone = Backbone(base_channels, base_depth, deep_mul)
+        self.backbone = backbone(base_channels, base_depth, deep_mul)
 
         # NOTE: neck
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
