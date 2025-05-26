@@ -61,7 +61,7 @@ class DFL(nn.Module):
 
 
 class YoloBody(nn.Module):
-    def __init__(self, input_shape, num_classes, phi):
+    def __init__(self, num_classes, phi):
         super(YoloBody, self).__init__()
         depth_dict = {"n": 0.33, "s": 0.33, "m": 0.67, "l": 1.00, "x": 1.00}
         width_dict = {"n": 0.25, "s": 0.50, "m": 0.75, "l": 1.00, "x": 1.25}

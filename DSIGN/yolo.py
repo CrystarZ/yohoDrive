@@ -38,7 +38,7 @@ class YOLO(object):
 
     def generate(self):
         # 建立yolo模型
-        net = YoloBody(self.input_shape, self.num_classes, self.phi)
+        net = YoloBody(self.num_classes, self.phi)
         net.load_state_dict(torch.load(self.module_path, map_location=self.device))
         net = net.to(self.device)
         net = net.fuse().eval()
