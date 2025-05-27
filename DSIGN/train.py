@@ -18,6 +18,13 @@ from DSIGN.nets.yolo_training import Loss
 from DSIGN.VOCdataset import VOCDataset
 
 
+def get_classes(classes_path):
+    with open(classes_path, encoding="utf-8") as f:
+        class_names = f.readlines()
+    class_names = [c.strip() for c in class_names]
+    return class_names, len(class_names)
+
+
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group["lr"]
@@ -104,13 +111,12 @@ def train():
     PHI = "s"
     BACKBONE = "MNV3"
     DATASET_PATH = "./datasets/traffic_light_VOC"
+    CLASSES_PATH = "./weights/tl_classes.txt"
     SAVE_PATH = "./.output"
 
-    trainDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="train")
-    valDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="val")
-    classes = trainDataset.classes + valDataset.classes
-    trainDataset.reload(classes=classes)
-    valDataset.reload(classes=classes)
+    classes, classes_len = get_classes(CLASSES_PATH)
+    trainDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="train", classes=classes)
+    valDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="val", classes=classes)
     trainLoader = Data.DataLoader(
         dataset=trainDataset,
         batch_size=BATCH_SIZE,
@@ -122,7 +128,7 @@ def train():
         collate_fn=yolo_dataset_collate,
     )
 
-    model = YoloBody(num_classes=len(classes), phi=PHI, bb=BACKBONE)
+    model = YoloBody(num_classes=classes_len, phi=PHI, bb=BACKBONE)
     optimizer = optim.Adam(model.parameters(), LR, betas=(0.937, 0.999))
     lossfunc = Loss(model)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
