@@ -12,8 +12,9 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 import torch.utils.data as Data
 import torch.optim as optim
-from torchvision.ops import box_iou
 import numpy as np
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
+
 
 from DSIGN.nets.yolo import YoloBody
 from DSIGN.nets.yolo_training import Loss, xywh2xyxy
@@ -24,10 +25,12 @@ BATCH_SIZE = 16
 INPUT_SHAPE = [640, 640]
 PHI = "s"
 BACKBONE = "MNV3"
+# BACKBONE = "CSPDarknet"
 DATASET_PATH = "./datasets/traffic_light_VOC"
 CLASSES_PATH = "./weights/tl_classes.txt"
 SAVE_PATH = "./.output"
 WEIGHT_PATH = f"{SAVE_PATH}/best_weights.pth"
+# WEIGHT_PATH = "./weights/tl_v8s.pth"
 
 
 def get_classes(classes_path):
@@ -164,28 +167,6 @@ def train():
                     f.write(str(i) + "\n")
 
 
-def compute_precision(pred_boxes, pred_labels, gt_boxes, gt_labels, iou_threshold=0.5):
-    if len(pred_boxes) == 0:
-        return 0.0
-    if len(gt_boxes) == 0:
-        return 0.0
-
-    ious = box_iou(pred_boxes, gt_boxes)  # [N_pred, N_gt]
-    max_iou, max_indices = ious.max(dim=1)  # 每个预测框匹配一个 gt 框
-
-    tp = 0
-    for i in range(len(pred_boxes)):
-        if max_iou[i] >= iou_threshold:
-            pred_label = pred_labels[i]
-            matched_gt_label = gt_labels[max_indices[i]]
-            if pred_label == matched_gt_label:
-                tp += 1
-
-    fp = len(pred_boxes) - tp
-    precision = tp / (tp + fp + 1e-6)
-    return precision
-
-
 def test():
     classes, num_classes = get_classes(CLASSES_PATH)
 
@@ -201,11 +182,11 @@ def test():
     model = model.to(device).eval()
     model.load_state_dict(torch.load(WEIGHT_PATH, map_location=device))
 
-    total_precision = 0.0
-    num_samples = 0
-
     dbbox = DecodeBox(num_classes, INPUT_SHAPE)
+    metric = MeanAveragePrecision()
 
+    preds = []
+    targets = []
     with torch.no_grad():
         for x, y in tqdm(testLoader, desc="Testing"):
             x = x.to(device)
@@ -214,42 +195,52 @@ def test():
             outputs = model(x)
             outputs = dbbox.decode_box(outputs)
             outputs = dbbox.non_max_suppression(
-                outputs,
-                num_classes,
-                INPUT_SHAPE,
-                INPUT_SHAPE,
-                True,
+                outputs, num_classes, INPUT_SHAPE, INPUT_SHAPE, True
             )
 
-            targets = []
-            for i in range(BATCH_SIZE):
-                img_b = y[y[:, 0] == i]
-                targets.append(img_b)
-
-            for output, target in zip(outputs, targets):
+            for output in outputs:
                 if output is None:
-                    break
+                    preds.append(
+                        {
+                            "boxes": torch.zeros((0, 4), device=device),
+                            "scores": torch.zeros((0,), device=device),
+                            "labels": torch.zeros((0,), device=device).to(torch.int64),
+                        }
+                    )
+                    continue
+                boxes = output[:, :4]
+                boxes = boxes[:, [1, 0, 3, 2]]
+                boxes = torch.Tensor(boxes).to(device)
+                scores = torch.Tensor(output[:, 4]).to(device)
+                labels = torch.Tensor(output[:, 5]).to(device)
+                pred = {}
+                pred["boxes"] = boxes.to(torch.float32)
+                pred["scores"] = scores.to(torch.float32)
+                pred["labels"] = labels.to(torch.int64)
+                preds.append(pred)
 
-                pred_boxes = output[:, :4]
-                pred_boxes = pred_boxes[:, [1, 0, 3, 2]]
-                pred_boxes = torch.from_numpy(pred_boxes).float().to(device)
-                gt_boxes = target[:, -4:]
-                gt_boxes = xywh2xyxy(gt_boxes)
-                gt_boxes[0::2] *= INPUT_SHAPE[1]  # x1, x2
-                gt_boxes[1::2] *= INPUT_SHAPE[0]  # y1, y2
+            targets_boxes = []
+            for i in range(len(outputs)):
+                img_b = y[y[:, 0] == i]
+                targets_boxes.append(img_b)
 
-                pred_label = output[:, 5]
-                gt_label = target[:, 1]
+            for b in targets_boxes:
+                boxes = b[:, -4:]
+                boxes = xywh2xyxy(boxes)
+                boxes[0::2] *= INPUT_SHAPE[1]  # x1, x2
+                boxes[1::2] *= INPUT_SHAPE[0]  # y1, y2
+                labels = b[:, 1]
+                target = {}
+                target["boxes"] = boxes.to(torch.float32)
+                target["labels"] = labels.to(torch.int64)
+                targets.append(target)
 
-                precision = compute_precision(
-                    pred_boxes, pred_label, gt_boxes, gt_label
-                )
-                total_precision += precision
-                num_samples += 1
+    metric.update(preds, targets)
+    results = metric.compute()
 
-    avg_precision = total_precision / (num_samples + 1e-6)
-    print(f"Precision: {avg_precision:.4f}")
-    return avg_precision
+    map = results["map_50"]
+    print("map", map)
+    return map
 
 
 def inference_time():
