@@ -48,7 +48,7 @@ ocr = OCR(module_path=ocr_mpath)
 
 # NOTE: DETECT
 
-type det = Tuple[str, float, int, int, int, int, str | None, int | None]
+det = Tuple[str, float, int, int, int, int, str | None, int | None]
 detkeys = ("class_name", "confidence", "xmin", "ymin", "xmax", "ymax", "tag", "num")
 
 

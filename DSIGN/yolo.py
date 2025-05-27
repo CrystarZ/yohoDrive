@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from .utils.utils_bbox import DecodeBox
 from .nets.yolo import YoloBody
 
-type imgshape = Tuple[int, int]  # w,h
+imgshape = Tuple[int, int]  # w,h
 
 
 class YOLO(object):
@@ -84,8 +84,8 @@ class YOLO(object):
 
         return image_data, image_shape
 
-    type res = Tuple[np.ndarray, np.ndarray, np.ndarray]
-    type fres = Tuple[int, float, int, int, int, int]
+    res = Tuple[np.ndarray, np.ndarray, np.ndarray]
+    fres = Tuple[int, float, int, int, int, int]
 
     def detect_image(self, image_data: Tensor, image_shape: imgshape) -> res | None:
         # 模型预测

@@ -14,13 +14,13 @@ from torch import Tensor
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-type xml = str
-type xmls = list[xml]
-type box = list[int]
-type cls = str
-type classes = list[cls]
-type meta = Tuple[str, list[str], list[box]]  # img_path,labels,boxes
-type shape = list[int]  # w,h
+xml = str
+xmls = list[xml]
+box = list[int]
+cls = str
+classes = list[cls]
+meta = Tuple[str, list[str], list[box]]  # img_path,labels,boxes
+shape = list[int]  # w,h
 COLOR = (0, 0, 255)
 
 
