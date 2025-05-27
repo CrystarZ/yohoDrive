@@ -149,5 +149,4 @@ class MobileNetV3(nn.Module):
         feat2 = self.c2(x)
         x = self.dark5(x)
         feat3 = self.c3(x)
-        print(feat1.shape)
         return feat1, feat2, feat3
