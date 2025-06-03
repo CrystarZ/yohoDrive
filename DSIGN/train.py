@@ -170,7 +170,7 @@ def train():
 def test():
     classes, num_classes = get_classes(CLASSES_PATH)
 
-    testDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="val", classes=classes)
+    testDataset = VOCDataset(DATASET_PATH, INPUT_SHAPE, sets="train", classes=classes)
     testLoader = Data.DataLoader(
         dataset=testDataset,
         batch_size=BATCH_SIZE,
@@ -258,7 +258,7 @@ def inference_time():
     for _ in range(R):
         _ = model(input)
     end = time.time()
-    avg_time = (end - start) / 100
+    avg_time = (end - start) / R
 
     print(f"Inference time: {avg_time * 1000:.2f} ms")
 
