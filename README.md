@@ -1,7 +1,7 @@
 # yohoDrive
 
 use yolo and ocr to detect traffic signs and traffic lights
-python == 3.13.2
+python == 3.10.16
 
 ## quick star
 
